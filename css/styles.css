@@ -1,0 +1,433 @@
+/* =============================================================
+   styles.css — Estilos del calendario de Dani y Eva
+   Enfoque "mobile first": los estilos base son para móvil y
+   los @media (min-width: …) añaden mejoras para pantallas grandes.
+   ============================================================= */
+
+/* ---------- 1. Variables de diseño (colores, radios, fuentes) ---------- */
+:root {
+  --fondo: #0b1020;
+  --fondo-2: #121a2e;
+  --superficie: #182139;
+  --superficie-2: #202b48;
+  --borde: #2c3859;
+  --texto: #eef2ff;
+  --texto-suave: #8e9abb;
+  --texto-tenue: #59658a;
+
+  --dani: #00F0FF;      /* color de Dani (turnos y eventos) */
+  --eva: #00FF26;       /* color de Eva */
+  --juntos: #C084FC;    /* eventos conjuntos: violeta que combina con cian y verde */
+  --corazon: #FF5FA2;   /* resaltado de días libres los dos */
+  --peligro: #FF5C6C;
+  --aviso: #FFB020;
+  --sobre-color: #03121A; /* texto oscuro encima de los colores neón */
+
+  --radio: 16px;
+  --radio-s: 10px;
+  --sombra: 0 14px 40px rgba(0, 0, 0, .45);
+  --fuente: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+
+/* ---------- 2. Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(1200px 500px at 0% -10%, rgba(0, 240, 255, .07), transparent 60%),
+    radial-gradient(1000px 500px at 100% -10%, rgba(0, 255, 38, .05), transparent 60%),
+    var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente);
+  line-height: 1.35;
+  -webkit-tap-highlight-color: transparent;
+  /* deja hueco para la barra de botones fija de abajo */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+h1, h2, h3, h4 { margin: 0; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--dani); outline-offset: 2px; }
+
+.app { max-width: 1120px; margin: 0 auto; padding: 0 10px; }
+.texto-suave { color: var(--texto-suave); font-size: .88rem; margin: 0; }
+.error { color: var(--peligro); font-size: .88rem; margin: 0; min-height: 1.2em; }
+.espaciador { flex: 1; }
+
+/* ---------- 3. Cabecera ---------- */
+.cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(12px + env(safe-area-inset-top)) 4px 8px;
+}
+.marca { font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em; }
+.marca__dani { color: var(--dani); }
+.marca__eva { color: var(--eva); }
+.marca__mas { color: var(--corazon); }
+.cabecera__derecha { display: flex; align-items: center; gap: 6px; }
+
+/* Indicador de estado de sincronización (puntito de color + texto) */
+.estado {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .75rem; color: var(--texto-suave);
+  background: var(--superficie); padding: 5px 10px; border-radius: 999px;
+}
+.estado i { width: 8px; height: 8px; border-radius: 50%; background: var(--texto-tenue); }
+.estado--ok i { background: var(--eva); box-shadow: 0 0 8px var(--eva); }
+.estado--sync i { background: var(--dani); animation: latido 1s infinite; }
+.estado--off i { background: var(--peligro); }
+.estado--local i { background: var(--aviso); }
+@keyframes latido { 50% { opacity: .3; } }
+
+/* ---------- 4. Aviso (sin conexión / modo local) ---------- */
+.aviso {
+  margin: 4px 0 10px; padding: 10px 12px; border-radius: var(--radio-s);
+  font-size: .85rem; background: rgba(255, 92, 108, .12); border: 1px solid rgba(255, 92, 108, .4);
+}
+.aviso--local { background: rgba(255, 176, 32, .1); border-color: rgba(255, 176, 32, .4); }
+
+/* ---------- 5. Botones genéricos ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 10px 16px;
+  border: 1px solid var(--borde); border-radius: 12px;
+  background: var(--superficie-2); font-weight: 700; font-size: .95rem;
+  transition: transform .1s, filter .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn--primario {
+  background: linear-gradient(135deg, var(--dani), var(--eva));
+  color: var(--sobre-color); border: 0;
+}
+.btn--peligro { background: transparent; color: var(--peligro); border-color: rgba(255, 92, 108, .5); }
+.btn--pequeno { min-height: 36px; padding: 6px 14px; font-size: .88rem; }
+.btn--bloque { width: 100%; }
+.btn-icono {
+  width: 40px; height: 40px; border-radius: 12px; border: 0;
+  background: var(--superficie); font-size: 1.2rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* Control segmentado (Mes/Semana, Dani/Eva/Juntos) */
+.segmentado {
+  display: inline-flex; background: var(--superficie); border-radius: 12px; padding: 3px; gap: 2px;
+}
+.segmentado > button, .segmentado > label {
+  border: 0; background: transparent; padding: 7px 14px; border-radius: 9px;
+  font-weight: 700; font-size: .88rem; color: var(--texto-suave); cursor: pointer;
+}
+.segmentado > button.activo { background: var(--superficie-2); color: var(--texto); }
+.segmentado input { position: absolute; opacity: 0; pointer-events: none; }
+.segmentado--quien { display: flex; }
+.segmentado--quien > label { flex: 1; text-align: center; }
+.segmentado--quien > label:has(input:checked) { color: var(--sobre-color); }
+.quien--dani:has(input:checked) { background: var(--dani); }
+.quien--eva:has(input:checked) { background: var(--eva); }
+.quien--ambos:has(input:checked) { background: var(--juntos); }
+.segmentado--quien > label:has(input:focus-visible) { outline: 2px solid var(--texto); }
+
+/* ---------- 6. Barra de navegación ---------- */
+.barra {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 10px;
+}
+.barra__fechas { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; }
+.barra__titulo {
+  font-size: 1.15rem; font-weight: 800;
+  flex: 1; text-align: center; white-space: nowrap;
+}
+.barra__acciones { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* ---------- 7. Vista de MES ---------- */
+.mes { background: var(--superficie); border-radius: 22px; padding: 8px 5px 6px; }
+.mes__cabecera, .mes__rejilla {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+}
+.mes__cabecera span {
+  text-align: center; font-weight: 800; font-size: .78rem;
+  color: var(--texto-suave); padding: 6px 0;
+}
+.mes__cabecera .finde { color: #E58BA6; }
+
+/* Cada día del mes es un botón: al pulsarlo se abre el modal del día */
+.dia {
+  display: flex; flex-direction: column; gap: 3px;
+  min-height: 94px; padding: 4px 3px;
+  background: var(--superficie-2); border: 2px solid transparent; border-radius: 12px;
+  text-align: left; position: relative; min-width: 0;
+}
+.dia--vacio { background: transparent; pointer-events: none; }
+.dia--pasado { opacity: .62; }
+.dia__arriba { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+.dia__num { font-weight: 800; font-size: .78rem; }
+.dia--hoy { border-color: var(--texto); }
+.dia--hoy .dia__num { background: var(--texto); color: var(--fondo); border-radius: 6px; padding: 0 5px; }
+/* Días libres los dos: borde rosa y corazón */
+.dia--juntos {
+  border-color: var(--corazon);
+  box-shadow: inset 0 0 18px rgba(255, 95, 162, .16);
+}
+.corazon { color: var(--corazon); font-size: .8rem; line-height: 1; }
+
+/* "Chips" de turno: arriba Dani, abajo Eva */
+.chip {
+  display: flex; align-items: center; justify-content: center;
+  height: 22px; border-radius: 7px;
+  font-weight: 900; font-size: .74rem; letter-spacing: .02em; white-space: nowrap; overflow: hidden;
+}
+.chip--dani { background: var(--dani); color: var(--sobre-color); }
+.chip--eva { background: var(--eva); color: var(--sobre-color); }
+/* Libre: solo contorno del color de la persona */
+.chip--libre { background: transparent; border: 1.5px solid currentColor; opacity: .8; }
+.chip--dani.chip--libre { color: var(--dani); }
+.chip--eva.chip--libre { color: var(--eva); }
+/* Sin turno puesto */
+.chip--vacio { background: transparent; color: var(--texto-tenue); font-weight: 500; }
+
+/* Mini-indicadores de eventos dentro del día */
+.dia__eventos { display: flex; flex-wrap: wrap; gap: 1px 2px; font-size: .72rem; line-height: 1.2; min-height: 1em; }
+.ev-mini { border-bottom: 2px solid var(--c, var(--juntos)); border-radius: 2px; }
+.ev-mini--dani { --c: var(--dani); }
+.ev-mini--eva { --c: var(--eva); }
+.ev-mini--ambos { --c: var(--juntos); }
+.ev-mas { color: var(--texto-suave); font-weight: 700; font-size: .65rem; }
+
+/* ---------- 8. Vista de SEMANA ---------- */
+.semana { display: grid; gap: 10px; }
+.sdia {
+  background: var(--superficie); border: 2px solid transparent; border-radius: var(--radio);
+  padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+}
+.sdia--hoy { border-color: var(--texto); }
+.sdia--juntos { border-color: var(--corazon); box-shadow: inset 0 0 22px rgba(255, 95, 162, .13); }
+.sdia__cabecera {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 0; background: none; padding: 0 0 2px; text-align: left;
+}
+.sdia__nombre { text-transform: capitalize; color: var(--texto-suave); font-weight: 700; font-size: .85rem; }
+.sdia__num { font-size: 1.25rem; font-weight: 900; }
+.sdia--hoy .sdia__num { color: var(--fondo); background: var(--texto); border-radius: 8px; padding: 0 7px; }
+.sdia__cabecera .corazon { margin-left: auto; font-size: .8rem; font-weight: 700; }
+
+/* Turno con letra + horas */
+.turno {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 0; border-radius: 10px; padding: 8px 10px; text-align: left; min-height: 40px;
+}
+.turno b { font-size: 1rem; font-weight: 900; min-width: 2.2ch; }
+.turno span { font-size: .85rem; font-weight: 600; }
+.turno small { margin-left: auto; font-size: .72rem; font-weight: 700; opacity: .75; }
+.turno--dani { background: var(--dani); color: var(--sobre-color); }
+.turno--eva { background: var(--eva); color: var(--sobre-color); }
+.turno--libre { background: transparent; border: 1.5px solid currentColor; }
+.turno--dani.turno--libre { color: var(--dani); }
+.turno--eva.turno--libre { color: var(--eva); }
+.turno--vacio { background: var(--superficie-2); color: var(--texto-tenue); }
+
+/* Tarjetas de evento (semana y modal del día) */
+.lista-eventos, .sdia__eventos { display: flex; flex-direction: column; gap: 6px; }
+.evento {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%;
+  background: var(--superficie-2); border: 0; border-left: 4px solid var(--c, var(--juntos));
+  border-radius: 9px; padding: 8px 10px; text-align: left;
+}
+.evento--dani { --c: var(--dani); }
+.evento--eva { --c: var(--eva); }
+.evento--ambos { --c: var(--juntos); }
+.evento__emoji { font-size: 1.2rem; line-height: 1.2; }
+.evento__texto { display: flex; flex-direction: column; min-width: 0; }
+.evento__texto b { font-size: .9rem; overflow-wrap: anywhere; }
+.evento__texto small { color: var(--texto-suave); font-size: .76rem; }
+.evento__quien { color: var(--c); font-weight: 700; }
+.evento__notas { white-space: pre-wrap; overflow-wrap: anywhere; }
+.vacio { color: var(--texto-tenue); font-size: .85rem; margin: 2px 0; }
+
+/* ---------- 9. Resumen y leyenda ---------- */
+.resumen { margin-top: 14px; display: grid; gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--superficie); border-radius: var(--radio); padding: 14px 6px; text-align: center; }
+.stat b { display: block; font-size: 2rem; font-weight: 900; line-height: 1.1; }
+.stat span { color: var(--texto-suave); font-size: .8rem; }
+.stat--dani b { color: var(--dani); }
+.stat--eva b { color: var(--eva); }
+.stat--juntos b { color: var(--corazon); }
+.libres-juntos { text-align: center; color: var(--texto-suave); font-size: .9rem; margin: 0; }
+.libres-juntos strong { color: var(--texto); }
+.leyenda {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center;
+  font-size: .8rem; color: var(--texto-suave);
+}
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.muestra { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+.muestra--dani { background: var(--dani); }
+.muestra--eva { background: var(--eva); }
+.muestra--juntos { background: var(--juntos); }
+.muestra--corazon { border: 2px solid var(--corazon); }
+.codigos { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.codigo {
+  font-size: .74rem; color: var(--texto-suave); background: var(--superficie);
+  border-radius: 8px; padding: 4px 8px;
+}
+.codigo b { color: var(--texto); }
+
+/* ---------- 10. Barra de acciones fija abajo ---------- */
+.acciones {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; justify-content: center; gap: 8px;
+  padding: 14px 10px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--fondo) 35%);
+}
+.acciones .btn { flex: 1; max-width: 280px; box-shadow: var(--sombra); font-size: .9rem; padding: 10px; }
+
+/* ---------- 11. Toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 50;
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--superficie-2); border: 1px solid var(--borde); color: var(--texto);
+  padding: 10px 16px; border-radius: 12px; font-size: .9rem; font-weight: 600;
+  max-width: calc(100vw - 32px); box-shadow: var(--sombra); transition: .25s;
+}
+.toast--visible { opacity: 1; transform: translate(-50%, 0); }
+.toast--error { border-color: var(--peligro); }
+.toast--ok { border-color: var(--eva); }
+
+/* ---------- 12. Modales (<dialog>) ---------- */
+dialog.modal {
+  border: 0; padding: 0; color: var(--texto); background: var(--fondo-2);
+  width: 100%; max-width: 100%; max-height: 92dvh;
+  /* En móvil se comporta como "hoja" que sube desde abajo */
+  margin: auto 0 0; border-radius: 22px 22px 0 0;
+  box-shadow: var(--sombra); overflow: auto;
+}
+dialog.modal[open] { animation: subir .22s ease-out; }
+dialog::backdrop { background: rgba(3, 6, 15, .72); backdrop-filter: blur(3px); }
+@keyframes subir { from { transform: translateY(30px); opacity: 0; } }
+.modal__cuerpo {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.modal__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modal__cabecera h3 { font-size: 1.15rem; }
+.modal__pie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.modal__pie .btn { flex: 1 1 auto; }
+.modal__pie .espaciador { flex: 0 0 0; }
+.modal--pin { text-align: center; }
+.pin__icono { font-size: 2.4rem; }
+.subtitulo { font-size: .95rem; margin-bottom: 8px; color: var(--texto-suave); }
+.nota {
+  margin: 0; font-size: .88rem; padding: 10px 12px; border-radius: var(--radio-s);
+  background: var(--superficie); color: var(--texto-suave);
+}
+
+/* ---------- 13. Formularios ---------- */
+.campo { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 700; color: var(--texto-suave); border: 0; padding: 0; margin: 0; min-width: 0; }
+.campo legend { padding: 0; margin-bottom: 6px; }
+input, select, textarea {
+  font: inherit; font-size: 16px; /* 16px evita que el iPhone haga zoom al escribir */
+  color: var(--texto); background: var(--superficie);
+  border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; width: 100%;
+}
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--dani); }
+.check { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .92rem; }
+.check input { width: 20px; height: 20px; accent-color: var(--dani); }
+.fila-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Selector de emojis */
+.emoji-actual { font-size: 1.3rem; margin-left: 6px; }
+.emojis { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
+.emojis button {
+  height: 42px; font-size: 1.35rem; border: 2px solid transparent;
+  border-radius: 10px; background: var(--superficie);
+}
+.emojis button[aria-selected="true"] { border-color: var(--juntos); background: var(--superficie-2); }
+
+/* Modal del día: selector de turnos */
+.persona { display: flex; flex-direction: column; gap: 8px; }
+.persona__fila { display: flex; align-items: center; gap: 10px; }
+.etiqueta { font-weight: 900; font-size: .8rem; padding: 3px 10px; border-radius: 999px; color: var(--sobre-color); }
+.etiqueta--dani { background: var(--dani); }
+.etiqueta--eva { background: var(--eva); }
+.selector-turno { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.opcion {
+  min-height: 44px; border-radius: 10px; border: 1.5px solid var(--borde);
+  background: var(--superficie); font-weight: 900; font-size: .95rem;
+}
+.persona--dani .opcion--activa { background: var(--dani); border-color: var(--dani); color: var(--sobre-color); }
+.persona--eva .opcion--activa { background: var(--eva); border-color: var(--eva); color: var(--sobre-color); }
+.opcion--borrar { font-weight: 600; color: var(--texto-suave); font-size: .8rem; }
+
+/* ---------- 14. Importar desde foto ---------- */
+.pasos { display: flex; flex-direction: column; gap: 14px; }
+.btn-archivo { position: relative; overflow: hidden; }
+.btn-archivo input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.pista { font-size: .8rem; margin-top: -6px; }
+.foto-preview { width: 100%; max-height: 260px; object-fit: contain; border-radius: var(--radio-s); background: #fff; }
+.progreso { display: flex; flex-direction: column; gap: 6px; }
+.progreso__barra { height: 8px; border-radius: 99px; background: var(--superficie); overflow: hidden; }
+.progreso__barra span {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--dani), var(--eva)); transition: width .2s;
+}
+/* Tabla editable con forma de calendario (7 columnas, lunes primero) */
+.tabla-import { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.tabla-import__cab { text-align: center; font-size: .72rem; font-weight: 800; color: var(--texto-suave); }
+.celda-import {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--superficie); border-radius: 8px; padding: 4px 2px; border: 1.5px solid transparent;
+}
+.celda-import--vacia { border-color: var(--aviso); }
+.celda-import > span { font-size: .72rem; font-weight: 800; }
+.celda-import select {
+  appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center;
+  padding: 6px 0; font-weight: 900; border-radius: 7px; background: var(--superficie-2);
+}
+.celda-import small { font-size: .6rem; color: var(--texto-tenue); }
+.detalles summary { cursor: pointer; color: var(--texto-suave); font-size: .85rem; }
+.detalles pre {
+  white-space: pre-wrap; font-size: .75rem; background: var(--superficie);
+  padding: 10px; border-radius: 8px; max-height: 220px; overflow: auto;
+}
+
+/* ---------- 15. Pantallas grandes (tablet y ordenador) ---------- */
+@media (min-width: 600px) {
+  dialog.modal {
+    margin: auto; width: min(560px, calc(100vw - 32px)); border-radius: 22px;
+  }
+  .modal--ancho { width: min(760px, calc(100vw - 32px)) !important; }
+  .selector-turno { grid-template-columns: repeat(8, 1fr); }
+  .modal__pie .btn { flex: 0 0 auto; }
+  .modal__pie .espaciador { flex: 1; }
+}
+@media (min-width: 720px) {
+  .app { padding: 0 20px; }
+  .marca { font-size: 1.9rem; }
+  .barra__titulo { font-size: 1.5rem; }
+  .barra__fechas { flex: 0 1 auto; }
+  .mes { padding: 14px 12px 10px; }
+  .mes__cabecera, .mes__rejilla { gap: 7px; }
+  .dia { min-height: 124px; padding: 8px 7px; gap: 5px; }
+  .dia__num { font-size: .95rem; }
+  .chip { height: 30px; font-size: .95rem; border-radius: 9px; }
+  .dia__eventos { font-size: .95rem; }
+  .stat b { font-size: 2.6rem; }
+  .acciones { justify-content: flex-end; padding-right: max(20px, calc((100vw - 1120px) / 2 + 20px)); }
+  .acciones .btn { flex: 0 0 auto; }
+}
+@media (min-width: 960px) {
+  /* En ordenador la semana se ve en 7 columnas */
+  .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .sdia { min-height: 320px; }
+  .turno { flex-wrap: wrap; gap: 2px 8px; }
+  .turno small { margin-left: 0; flex-basis: 100%; }
+  .dia__eventos .ev-mini { font-size: 1rem; }
+}
+@media (hover: hover) {
+  .dia:hover, .sdia__cabecera:hover .sdia__num, .evento:hover { filter: brightness(1.15); }
+  .btn:hover { filter: brightness(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

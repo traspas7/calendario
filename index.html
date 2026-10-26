@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <!-- viewport-fit=cover permite usar las zonas seguras del iPhone (notch y barra inferior) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Dani + Eva · Calendario</title>
+  <!-- Icono de la pestaña hecho con un emoji, sin archivos extra -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Punto de entrada de la app (módulo ES: carga el resto de archivos JS) -->
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===== CABECERA: título, estado de sincronización y ajustes ===== -->
+    <header class="cabecera">
+      <h1 class="marca">
+        <span class="marca__dani">Dani</span> <span class="marca__mas">+</span> <span class="marca__eva">Eva</span>
+      </h1>
+      <div class="cabecera__derecha">
+        <span id="estado" class="estado" role="status"><i></i><span>…</span></span>
+        <button id="btn-ajustes" class="btn-icono" type="button" aria-label="Ajustes">⚙️</button>
+      </div>
+    </header>
+
+    <!-- ===== AVISO (sin conexión / modo local). Se muestra desde JS ===== -->
+    <div id="aviso" class="aviso" role="alert" hidden></div>
+
+    <!-- ===== BARRA DE NAVEGACIÓN: flechas, título del periodo, Hoy y cambio de vista ===== -->
+    <nav class="barra" aria-label="Navegación del calendario">
+      <div class="barra__fechas">
+        <button id="btn-anterior" class="btn-icono" type="button" aria-label="Anterior">‹</button>
+        <h2 id="titulo-periodo" class="barra__titulo">…</h2>
+        <button id="btn-siguiente" class="btn-icono" type="button" aria-label="Siguiente">›</button>
+      </div>
+      <div class="barra__acciones">
+        <button id="btn-hoy" class="btn btn--pequeno" type="button">Hoy</button>
+        <div class="segmentado" role="group" aria-label="Vista">
+          <button type="button" data-vista="mes">Mes</button>
+          <button type="button" data-vista="semana">Semana</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===== VISTA PRINCIPAL (mes o semana). Se rellena desde calendario.js ===== -->
+    <main id="vista" class="vista"></main>
+
+    <!-- ===== RESUMEN: contadores, días libres juntos y leyenda ===== -->
+    <section id="resumen" class="resumen" aria-label="Resumen"></section>
+  </div>
+
+  <!-- ===== BOTONES FIJOS ABAJO (cómodos con el pulgar en el móvil) ===== -->
+  <div class="acciones">
+    <button id="btn-foto" class="btn" type="button">📷 Subir foto de horario</button>
+    <button id="btn-evento" class="btn btn--primario" type="button">＋ Añadir evento</button>
+  </div>
+
+  <!-- ===== Mensajes flotantes cortos (toast) ===== -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- =========================================================
+       MODAL: PIN (se pide la primera vez y se guarda en el dispositivo)
+       ========================================================= -->
+  <dialog id="dlg-pin" class="modal modal--pin">
+    <form id="form-pin" class="modal__cuerpo">
+      <div class="pin__icono">🔒</div>
+      <h3>Calendario de Dani y Eva</h3>
+      <p class="texto-suave">Escribe el PIN compartido. Solo hace falta la primera vez en este dispositivo.</p>
+      <input id="pin-input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="PIN" aria-label="PIN" required>
+      <p id="pin-error" class="error" aria-live="polite"></p>
+      <button id="pin-entrar" class="btn btn--primario" type="submit">Entrar</button>
+    </form>
+  </dialog>
+
+  <!-- =========================================================
+       MODAL: DÍA (cambiar turnos a mano y ver eventos del día)
+       ========================================================= -->
+  <dialog id="dlg-dia" class="modal">
+    <div class="modal__cuerpo">
+      <header class="modal__cabecera">
+        <h3 id="dia-titulo">Día</h3>
+        <button class="btn-icono" type="button" data-cerrar aria-label="Cerrar">✕</button>
+      </header>
+
+      <!-- Dani siempre arriba -->
+      <section class="persona persona--dani">
+        <div class="persona__fila">
+          <span class="etiqueta etiqueta--dani">Dani</span>
+          <span id="dia-horas-dani" class="texto-suave"></span>
+        </div>
+        <div class="selector-turno" data-persona="dani"></div>
+      </section>
+
+      <!-- Eva siempre abajo -->
+      <section class="persona persona--eva">
+        <div class="persona__fila">
+          <span class="etiqueta etiqueta--eva">Eva</span>
+          <span id="dia-horas-eva" class="texto-suave"></span>
+        </div>
+        <div class="selector-turno" data-persona="eva"></div>
+      </section>
+
+      <section>
+        <h4 class="subtitulo">Eventos</h4>
+        <div id="dia-eventos" class="lista-eventos"></div>
+        <button id="dia-nuevo-evento" class="btn btn--bloque" type="button">＋ Añadir evento este día</button>
+      </section>
+
+      <footer class="modal__pie">
+        <button class="btn" type="button" data-cerrar>Cerrar</button>
+        <button id="dia-guardar" class="btn btn--primario" type="button">Guardar turnos</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- =========================================================
+       MODAL: EVENTO (crear, ver, editar y borrar)
+       ========================================================= -->
+  <dialog id="dlg-evento" class="modal">
+    <form id="form-evento" class="modal__cuerpo" novalidate>
+      <header class="modal__cabecera">
+        <h3 id="evento-titulo-modal">Nuevo evento</h3>
+        <button class="btn-icono" type="button" data-cerrar aria-label="Cerrar">✕</button>
+      </header>
+
+      <label class="campo">Título
+        <input name="titulo" type="text" maxlength="120" placeholder="Cena con amigos" required>
+      </label>
+
+      <div class="campo">
+        <span>Emoji <span id="evento-emoji-actual" class="emoji-actual">📅</span></span>
+        <div id="selector-emojis" class="emojis" role="listbox" aria-label="Elegir emoji"></div>
+        <input id="evento-emoji-otro" type="text" maxlength="16" placeholder="…o escribe/pega otro emoji">
+      </div>
+
+      <label class="campo">Fecha
+        <input name="fecha" type="date" required>
+      </label>
+
+      <label class="check">
+        <input name="todo_el_dia" type="checkbox"> Todo el día
+      </label>
+
+      <div id="evento-horas" class="fila-2">
+        <label class="campo">Empieza
+          <input name="hora_inicio" type="time">
+        </label>
+        <label class="campo">Termina
+          <input name="hora_fin" type="time">
+        </label>
+      </div>
+
+      <fieldset class="campo quien">
+        <legend>¿De quién es?</legend>
+        <div class="segmentado segmentado--quien">
+          <label class="quien--dani"><input type="radio" name="quien" value="dani"><span>Dani</span></label>
+          <label class="quien--eva"><input type="radio" name="quien" value="eva"><span>Eva</span></label>
+          <label class="quien--ambos"><input type="radio" name="quien" value="ambos"><span>Juntos</span></label>
+        </div>
+      </fieldset>
+
+      <label class="campo">Notas (opcional)
+        <textarea name="notas" rows="3" maxlength="2000" placeholder="Dirección, quién viene, qué llevar…"></textarea>
+      </label>
+
+      <p id="evento-error" class="error" aria-live="polite"></p>
+
+      <footer class="modal__pie">
+        <button id="evento-borrar" class="btn btn--peligro" type="button" hidden>Borrar</button>
+        <span class="espaciador"></span>
+        <button class="btn" type="button" data-cerrar>Cancelar</button>
+        <button id="evento-guardar" class="btn btn--primario" type="submit">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- =========================================================
+       MODAL: IMPORTAR HORARIO DESDE FOTO (OCR con Tesseract.js)
+       ========================================================= -->
+  <dialog id="dlg-foto" class="modal modal--ancho">
+    <div class="modal__cuerpo">
+      <header class="modal__cabecera">
+        <h3>📷 Importar horario desde foto</h3>
+        <button class="btn-icono" type="button" data-cerrar aria-label="Cerrar">✕</button>
+      </header>
+
+      <!-- Paso 1: elegir persona, mes, año y la foto -->
+      <section id="foto-paso1" class="pasos">
+        <fieldset class="campo">
+          <legend>¿De quién es el horario?</legend>
+          <div class="segmentado segmentado--quien">
+            <label class="quien--dani"><input type="radio" name="foto-persona" value="dani" checked><span>Dani</span></label>
+            <label class="quien--eva"><input type="radio" name="foto-persona" value="eva"><span>Eva</span></label>
+          </div>
+        </fieldset>
+
+        <div class="fila-2">
+          <label class="campo">Mes <select id="foto-mes"></select></label>
+          <label class="campo">Año <input id="foto-anio" type="number" min="2020" max="2100" inputmode="numeric"></label>
+        </div>
+
+        <label class="campo">Nombre tal y como sale en la planilla
+          <input id="foto-nombre" type="text" placeholder="Nombre y apellidos">
+        </label>
+
+        <label class="btn btn--bloque btn-archivo">
+          🖼️ Hacer o elegir foto
+          <input id="foto-archivo" type="file" accept="image/*">
+        </label>
+        <p class="texto-suave pista">Consejo: haz la foto recta, con buena luz y que se vea bien tu fila.</p>
+
+        <label class="check">
+          <input id="foto-binarizar" type="checkbox" checked> Convertir a blanco y negro (suele acertar más)
+        </label>
+
+        <!-- Vista previa de la imagen ya mejorada (la que lee el OCR) -->
+        <canvas id="foto-preview" class="foto-preview" hidden></canvas>
+
+        <div id="foto-progreso" class="progreso" hidden>
+          <div class="progreso__barra"><span></span></div>
+          <p class="texto-suave"></p>
+        </div>
+
+        <button id="foto-leer" class="btn btn--primario btn--bloque" type="button" disabled>🔍 Leer horario</button>
+      </section>
+
+      <!-- Paso 2: tabla editable para revisar antes de guardar -->
+      <section id="foto-paso2" class="pasos" hidden>
+        <p id="foto-resumen" class="nota"></p>
+
+        <label class="campo">Fila de la foto usada
+          <select id="foto-linea"></select>
+        </label>
+
+        <div id="foto-tabla" class="tabla-import" aria-label="Turnos reconocidos, editables"></div>
+
+        <details class="detalles">
+          <summary>Ver texto reconocido</summary>
+          <pre id="foto-texto"></pre>
+        </details>
+
+        <footer class="modal__pie">
+          <button id="foto-volver" class="btn" type="button">‹ Volver</button>
+          <span class="espaciador"></span>
+          <button id="foto-confirmar" class="btn btn--primario" type="button">✅ Confirmar y añadir</button>
+        </footer>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- =========================================================
+       MODAL: AJUSTES
+       ========================================================= -->
+  <dialog id="dlg-ajustes" class="modal">
+    <div class="modal__cuerpo">
+      <header class="modal__cabecera">
+        <h3>⚙️ Ajustes</h3>
+        <button class="btn-icono" type="button" data-cerrar aria-label="Cerrar">✕</button>
+      </header>
+      <p id="ajustes-info" class="nota"></p>
+      <button id="ajustes-recargar" class="btn btn--bloque" type="button">🔄 Recargar datos ahora</button>
+      <button id="ajustes-olvidar" class="btn btn--bloque btn--peligro" type="button">🔒 Olvidar el PIN en este dispositivo</button>
+    </div>
+  </dialog>
+</body>
+</html>
