@@ -385,6 +385,55 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--d
   padding: 6px 0; font-weight: 900; border-radius: 7px; background: var(--superficie-2);
 }
 .celda-import small { font-size: .6rem; color: var(--texto-tenue); }
+/* Tarjetas de método (Excel, pegar, a mano, foto) */
+.metodos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metodo {
+  position: relative; overflow: hidden; cursor: pointer;
+  display: flex; align-items: flex-start; gap: 8px; text-align: left;
+  background: var(--superficie); border: 1.5px solid var(--borde); border-radius: 12px; padding: 10px;
+}
+.metodo b { display: block; font-size: .9rem; }
+.metodo small { display: block; color: var(--texto-suave); font-size: .74rem; font-weight: 500; margin-top: 2px; }
+.metodo__icono { font-size: 1.4rem; line-height: 1; }
+.metodo--activo { border-color: var(--dani); }
+.metodo input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Paleta del editor: se queda fija arriba al hacer scroll */
+.paleta-caja {
+  position: sticky; top: -16px; z-index: 2;
+  background: var(--fondo-2); padding: 6px 0; display: flex; flex-direction: column; gap: 8px;
+}
+.paleta { display: flex; flex-wrap: wrap; gap: 6px; }
+.pincel {
+  min-height: 38px; min-width: 42px; padding: 4px 10px; border-radius: 10px;
+  border: 1.5px solid var(--borde); background: var(--superficie); font-weight: 900; font-size: .85rem;
+}
+.pincel--activo.pincel--dani { background: var(--dani); border-color: var(--dani); color: var(--sobre-color); }
+.pincel--activo.pincel--eva { background: var(--eva); border-color: var(--eva); color: var(--sobre-color); }
+.pincel--accion { font-weight: 700; color: var(--texto-suave); }
+.pincel--accion.pincel--activo { border-color: var(--peligro); color: var(--peligro); }
+.otro-horario { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+.fila-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Celdas del editor (botones) */
+button.celda-import { color: var(--texto); min-height: 54px; justify-content: center; cursor: pointer; }
+.celda-import b { font-size: .8rem; font-weight: 900; white-space: nowrap; }
+.celda-import--trabajo.celda-import--dani { background: var(--dani); color: var(--sobre-color); }
+.celda-import--trabajo.celda-import--eva { background: var(--eva); color: var(--sobre-color); }
+.celda-import--libre.celda-import--dani { border-color: var(--dani); color: var(--dani); }
+.celda-import--libre.celda-import--eva { border-color: var(--eva); color: var(--eva); }
+.celda-import--trabajo small { color: inherit; opacity: .7; }
+
+/* Horas a medida en el modal del día */
+.horas-medida { display: flex; flex-direction: column; gap: 8px; }
+.atajos-horas { display: flex; flex-wrap: wrap; gap: 6px; }
+.atajo-hora {
+  border: 1px solid var(--borde); background: var(--superficie); border-radius: 999px;
+  padding: 6px 12px; font-size: .82rem; font-weight: 700;
+}
+.opcion--horas { font-size: .8rem; }
+.chip--horas { font-size: .66rem; letter-spacing: 0; }
+
 .detalles summary { cursor: pointer; color: var(--texto-suave); font-size: .85rem; }
 .detalles pre {
   white-space: pre-wrap; font-size: .75rem; background: var(--superficie);
@@ -397,7 +446,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--d
     margin: auto; width: min(560px, calc(100vw - 32px)); border-radius: 22px;
   }
   .modal--ancho { width: min(760px, calc(100vw - 32px)) !important; }
-  .selector-turno { grid-template-columns: repeat(8, 1fr); }
+  .selector-turno { grid-template-columns: repeat(5, 1fr); }
+  .metodos { grid-template-columns: repeat(4, 1fr); }
+  .metodo { flex-direction: column; }
   .modal__pie .btn { flex: 0 0 auto; }
   .modal__pie .espaciador { flex: 1; }
 }
@@ -411,6 +462,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--d
   .dia { min-height: 124px; padding: 8px 7px; gap: 5px; }
   .dia__num { font-size: .95rem; }
   .chip { height: 30px; font-size: .95rem; border-radius: 9px; }
+  .chip--horas { font-size: .85rem; }
   .dia__eventos { font-size: .95rem; }
   .stat b { font-size: 2.6rem; }
   .acciones { justify-content: flex-end; padding-right: max(20px, calc((100vw - 1120px) / 2 + 20px)); }

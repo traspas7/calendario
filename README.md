@@ -18,9 +18,10 @@ calendario/
 │   ├── store.js          ← Datos: Supabase + caché offline en el móvil
 │   ├── calendario.js     ← Dibuja la vista mes, la vista semana y el resumen
 │   ├── modales.js        ← Ventana del día (turnos a mano) y del evento
-│   ├── importar.js       ← Pantalla "Subir foto de horario"
+│   ├── importar.js       ← Pantalla "Cargar horario" (Excel, pegar, a mano, foto) + editor del mes
+│   ├── excel.js          ← Lee el cuadrante desde .xlsx o desde lo copiado de Excel
 │   ├── ocr.js            ← Mejora de imagen + Tesseract.js + extracción de turnos
-│   ├── turnos.js         ← Definición de M, T, N, FM, FT, FN, L y sus horas
+│   ├── turnos.js         ← Turnos M, T, N, FM, FT, FN, L, V y horarios a medida
 │   └── utils.js          ← Fechas en español, avisos, utilidades
 └── supabase/
     └── schema.sql        ← Tablas, función del PIN y políticas RLS
@@ -74,7 +75,9 @@ SUPABASE_URL: 'https://abcdefghijkl.supabase.co',
 SUPABASE_ANON_KEY: 'eyJhbGciOi...',
 ```
 
-Los nombres de la planilla (`NOMBRES_PLANILLA`) se pueden dejar vacíos para que no queden públicos en GitHub: se escriben en la pantalla "Subir foto de horario" y cada móvil los recuerda.
+Los nombres de la planilla (`NOMBRES_PLANILLA`) se pueden dejar vacíos para que no queden públicos en GitHub: se escriben en la pantalla "Cargar horario" y cada móvil los recuerda.
+
+> **Si creaste la base de datos antes de los horarios a medida**, ejecuta también `supabase/actualizacion-1.sql` (añade las vacaciones `V` y los horarios con horas sueltas).
 
 4. Guarda y recarga. Ahora te pedirá el PIN. Escríbelo una vez y queda guardado en ese dispositivo.
 
@@ -144,7 +147,14 @@ git push -u origin main
 - **Mes / Semana**: botón arriba. Flechas ‹ › o deslizar el dedo para cambiar de periodo. **Hoy** vuelve a la fecha actual.
 - **Pulsar un día**: poner o cambiar los turnos de cada uno (Dani arriba, Eva abajo), ver sus eventos y añadir uno nuevo ese día.
 - **♥ borde rosa**: libráis los dos (solo se marca si los dos tenéis turnos puestos ese mes; un día sin turno cuenta como libre).
-- **📷 Subir foto de horario**: elige de quién es, mes y año → haz o elige la foto → *Leer horario* → revisa la tabla (lo que falte sale en naranja) → *Confirmar y añadir*. La lectura se hace en el propio móvil con Tesseract.js; la primera vez descarga ~5 MB (motor + idioma español).
+- **📥 Cargar horario**: elige de quién es, mes y año, y cómo:
+  - **📊 Archivo Excel** (lo mejor para Dani): el `.xlsx` del cuadrante. Elige sola la pestaña del mes (`NOV26`…), busca la fila del nombre y la fila de números de día que tiene encima. Celda vacía = Libre.
+  - **📋 Pegar desde Excel**: selecciona en Excel desde la fila de los días hasta tu fila, copia y pega.
+  - **✏️ Rellenar a mano** (lo mejor para Eva): elige un turno o un horario (＋ Horario, p. ej. 17:00–22:00) y toca los días. "Días vacíos → Libre" completa el resto. Los horarios usados se recuerdan para la próxima vez.
+  - **📷 Foto**: solo para hojas impresas y nítidas donde cada día tiene su letra. Con fotos de pantalla, torcidas o a mano no es fiable (Tesseract no lee letra manuscrita).
+  
+  Siempre se revisa en el editor del mes antes de guardar.
+- **Pulsar un día → 🕒 Horas**: pone un horario a medida a mano (entrada y salida), con atajos a los horarios ya usados.
 - **＋ Añadir evento**: título, emoji, fecha, horas o todo el día, notas y de quién es (Dani, Eva o Juntos). Pulsa un evento para editarlo o borrarlo.
 
 **Consejos para la foto:** recta y de frente, buena luz, sin sombras, y si puedes recorta para que salga solo la tabla. Si no encuentra el nombre, elige la fila a mano en el desplegable "Fila de la foto usada".

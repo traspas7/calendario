@@ -68,10 +68,22 @@ grant execute on function public.pin_valido() to anon, authenticated;
 create table if not exists public.turnos (
   persona     text        not null check (persona in ('dani', 'eva')),
   fecha       date        not null,
-  codigo      text        not null check (codigo in ('M', 'T', 'N', 'FM', 'FT', 'FN', 'L')),
+  codigo      text        not null,  -- M, T, N, FM, FT, FN, L, V o H (horario a medida)
+  hora_inicio time,                  -- solo para H
+  hora_fin    time,                  -- solo para H
   actualizado timestamptz not null default now(),
   primary key (persona, fecha)   -- evita duplicados y permite "upsert"
 );
+
+-- Comprobaciones (incluye lo de actualizacion-1.sql por si la tabla ya existía)
+alter table public.turnos add column if not exists hora_inicio time;
+alter table public.turnos add column if not exists hora_fin    time;
+alter table public.turnos drop constraint if exists turnos_codigo_check;
+alter table public.turnos add constraint turnos_codigo_check
+  check (codigo in ('M', 'T', 'N', 'FM', 'FT', 'FN', 'L', 'V', 'H'));
+alter table public.turnos drop constraint if exists turnos_horas_check;
+alter table public.turnos add constraint turnos_horas_check
+  check (codigo <> 'H' or (hora_inicio is not null and hora_fin is not null));
 
 
 -- -------------------------------------------------------------

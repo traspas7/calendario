@@ -2,8 +2,12 @@
 // modales.js — Ventanas del DÍA (turnos a mano) y del EVENTO
 // =============================================================
 
-import { turnoDe, eventosDe, guardarTurno, guardarEvento, borrarEvento, datos } from './store.js';
-import { TURNOS, CODIGOS, textoHoras } from './turnos.js';
+import {
+  turnoCompleto, horariosUsados, eventosDe, guardarTurno, guardarEvento, borrarEvento, datos,
+} from './store.js';
+import {
+  TURNOS, CODIGOS_FIJOS, textoHoras, crearTurno, mismoTurno, nombreTurno, etiquetaLarga,
+} from './turnos.js';
 import { htmlEvento } from './calendario.js';
 import { fechaLarga, hoyISO, toast, avisarError } from './utils.js';
 
@@ -27,26 +31,49 @@ let seleccion = { dani: null, eva: null };     // turnos elegidos (aún sin guar
 /** Abre el modal de un día con los turnos actuales y sus eventos */
 export function abrirDia(iso) {
   diaActual = iso;
-  seleccion = { dani: turnoDe('dani', iso), eva: turnoDe('eva', iso) };
+  seleccion = { dani: turnoCompleto('dani', iso), eva: turnoCompleto('eva', iso) };
   $('#dia-titulo').textContent = fechaLarga(iso);
   pintarSelectores();
   pintarEventosDia();
   if (!dlgDia.open) dlgDia.showModal();
 }
 
-/** Botones M, T, N, FM, FT, FN, L y "Quitar" para cada persona */
+/**
+ * Botones M, T, N, FM, FT, FN, L, V, "🕒 Horas" y "Quitar" para cada persona.
+ * Con "Horas" aparecen dos campos de hora y los horarios ya usados antes.
+ */
 function pintarSelectores() {
   for (const persona of ['dani', 'eva']) {
     const actual = seleccion[persona];
-    const botones = CODIGOS.map(c => `<button type="button"
-        class="opcion${actual === c ? ' opcion--activa' : ''}" data-codigo="${c}"
-        aria-pressed="${actual === c}" title="${TURNOS[c].nombre} ${textoHoras(c)}">${c}</button>`).join('');
-    document.querySelector(`.selector-turno[data-persona="${persona}"]`).innerHTML =
-      botones + `<button type="button" class="opcion opcion--borrar" data-codigo="" aria-pressed="${!actual}">Quitar</button>`;
+    const codigo = actual?.codigo || '';
+    const botones = CODIGOS_FIJOS.map(c => `<button type="button"
+        class="opcion${codigo === c ? ' opcion--activa' : ''}" data-codigo="${c}"
+        aria-pressed="${codigo === c}" title="${TURNOS[c].nombre} ${textoHoras(c)}">${c}</button>`).join('');
+    document.querySelector(`.selector-turno[data-persona="${persona}"]`).innerHTML = botones
+      + `<button type="button" class="opcion opcion--horas${codigo === 'H' ? ' opcion--activa' : ''}" data-codigo="H"
+          aria-pressed="${codigo === 'H'}">🕒 Horas</button>`
+      + `<button type="button" class="opcion opcion--borrar" data-codigo="" aria-pressed="${!actual}">Quitar</button>`;
     $(`#dia-horas-${persona}`).textContent = actual
-      ? `${TURNOS[actual].nombre}${actual === 'L' ? '' : ' · ' + textoHoras(actual)}`
+      ? `${nombreTurno(actual)}${actual.codigo === 'L' || actual.codigo === 'V' ? '' : ' · ' + etiquetaLarga(actual)}`
       : 'Sin turno';
+    pintarHorasMedida(persona);
   }
+}
+
+/** Campos "entra / sale" + atajos con los horarios a medida ya usados */
+function pintarHorasMedida(persona) {
+  const caja = document.querySelector(`.horas-medida[data-persona="${persona}"]`);
+  const actual = seleccion[persona];
+  caja.hidden = actual?.codigo !== 'H';
+  if (caja.hidden) return;
+  const atajos = horariosUsados(persona).map(h => `<button type="button" class="atajo-hora"
+      data-inicio="${h.inicio}" data-fin="${h.fin}">${etiquetaLarga(h)}</button>`).join('');
+  caja.innerHTML = `
+    <div class="fila-2">
+      <label class="campo">Entra <input type="time" data-campo="inicio" value="${actual.inicio || ''}"></label>
+      <label class="campo">Sale <input type="time" data-campo="fin" value="${actual.fin || ''}"></label>
+    </div>
+    ${atajos ? `<div class="atajos-horas">${atajos}</div>` : ''}`;
 }
 
 function pintarEventosDia() {
@@ -59,11 +86,19 @@ function pintarEventosDia() {
 /** Guarda solo los turnos que han cambiado */
 async function guardarTurnosDia() {
   const boton = $('#dia-guardar');
+  // Un horario a medida necesita las dos horas
+  for (const persona of ['dani', 'eva']) {
+    const t = seleccion[persona];
+    if (t?.codigo === 'H' && (!t.inicio || !t.fin)) {
+      toast(`Pon la hora de entrada y de salida de ${persona === 'dani' ? 'Dani' : 'Eva'}`, 'error');
+      return;
+    }
+  }
   boton.disabled = true;
   try {
     let cambios = 0;
     for (const persona of ['dani', 'eva']) {
-      if (seleccion[persona] !== turnoDe(persona, diaActual)) {
+      if (!mismoTurno(seleccion[persona], turnoCompleto(persona, diaActual))) {
         await guardarTurno(persona, diaActual, seleccion[persona]);
         cambios++;
       }
@@ -197,12 +232,33 @@ export function iniciarModales(opciones) {
     const boton = e.target.closest('.selector-turno button[data-codigo]');
     if (boton) {
       const persona = boton.parentElement.dataset.persona;
-      seleccion[persona] = boton.dataset.codigo || null;
+      const codigo = boton.dataset.codigo;
+      if (!codigo) seleccion[persona] = null;
+      else if (codigo === 'H') {
+        // Si ya era un horario a medida lo mantenemos; si no, propone el más usado
+        const previo = seleccion[persona]?.codigo === 'H' ? seleccion[persona] : horariosUsados(persona)[0];
+        seleccion[persona] = crearTurno('H', previo?.inicio || '', previo?.fin || '');
+      } else seleccion[persona] = crearTurno(codigo);
+      pintarSelectores();
+      return;
+    }
+    const atajo = e.target.closest('.atajo-hora');
+    if (atajo) {
+      const persona = atajo.closest('.horas-medida').dataset.persona;
+      seleccion[persona] = crearTurno('H', atajo.dataset.inicio, atajo.dataset.fin);
       pintarSelectores();
       return;
     }
     const tarjeta = e.target.closest('[data-evento]');
     if (tarjeta) abrirEventoPorId(tarjeta.dataset.evento);
+  });
+  // Escribir las horas a medida (sin redibujar, para no perder el foco)
+  dlgDia.addEventListener('input', e => {
+    const campo = e.target.dataset.campo;
+    if (!campo) return;
+    const persona = e.target.closest('.horas-medida').dataset.persona;
+    seleccion[persona] = { ...seleccion[persona], [campo]: e.target.value };
+    $(`#dia-horas-${persona}`).textContent = `Horario · ${etiquetaLarga(seleccion[persona])}`;
   });
   $('#dia-guardar').addEventListener('click', guardarTurnosDia);
   $('#dia-nuevo-evento').addEventListener('click', () => abrirEvento(null, diaActual));

@@ -9,7 +9,7 @@
 // localStorage desde store.js).
 // =============================================================
 
-const CACHE = 'calendario-dani-eva-v1';
+const CACHE = 'calendario-dani-eva-v2';
 
 // Archivos de la web que se guardan al instalar
 const ARCHIVOS = [
@@ -25,6 +25,7 @@ const ARCHIVOS = [
   './js/modales.js',
   './js/ocr.js',
   './js/importar.js',
+  './js/excel.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js',
 ];
 

@@ -6,8 +6,10 @@
 // data-evento ("delegación de eventos").
 // =============================================================
 
-import { turnoDe, eventosDe, tieneTurnosEnMes } from './store.js';
-import { TURNOS, PERSONAS, textoHoras, trabaja, estaLibre } from './turnos.js';
+import { turnoDe, turnoCompleto, eventosDe, tieneTurnosEnMes } from './store.js';
+import {
+  TURNOS, PERSONAS, textoHoras, trabaja, estaLibre, etiquetaCorta, etiquetaLarga, nombreTurno,
+} from './turnos.js';
 import {
   MESES, MESES_CORTOS, DIAS_CORTOS, DIAS_ABREV, aISO, deISO, sumarDias, diaSemana,
   inicioSemana, diasEnMes, hoyISO, capitalizar, fechaLarga, horaCorta, escaparHTML,
@@ -62,25 +64,27 @@ function crearComprobadorJuntos() {
 
 // ---------- Piezas de HTML reutilizables ----------
 
-/** Chip pequeño de la vista mes: solo la letra */
-function chipMes(persona, codigo) {
-  if (!codigo) return `<span class="chip chip--${persona} chip--vacio">·</span>`;
-  const libre = codigo === 'L' ? ' chip--libre' : '';
-  return `<span class="chip chip--${persona}${libre}">${codigo}</span>`;
+/** Chip pequeño de la vista mes: la letra o las horas resumidas ("17-22") */
+function chipMes(persona, turno) {
+  if (!turno) return `<span class="chip chip--${persona} chip--vacio">·</span>`;
+  const libre = estaLibre(turno.codigo) ? ' chip--libre' : '';
+  const horas = turno.codigo === 'H' ? ' chip--horas' : '';
+  return `<span class="chip chip--${persona}${libre}${horas}">${etiquetaCorta(turno)}</span>`;
 }
 
 /** Turno de la vista semana: letra + horas */
-function turnoSemana(persona, codigo, iso) {
+function turnoSemana(persona, turno, iso) {
   const nombre = PERSONAS[persona].nombre;
-  if (!codigo) {
+  if (!turno) {
     return `<button type="button" class="turno turno--${persona} turno--vacio" data-fecha="${iso}">
       <b>–</b><span>${nombre}: sin turno</span></button>`;
   }
-  const libre = codigo === 'L' ? ' turno--libre' : '';
-  const detalle = codigo === 'L' ? 'Libre' : textoHoras(codigo);
+  const libre = estaLibre(turno.codigo) ? ' turno--libre' : '';
+  const letra = turno.codigo === 'H' ? '🕒' : turno.codigo;
+  const detalle = etiquetaLarga(turno);
   return `<button type="button" class="turno turno--${persona}${libre}" data-fecha="${iso}"
-      aria-label="${nombre}: ${TURNOS[codigo].nombre} ${detalle}">
-      <b>${codigo}</b><span>${detalle}</span><small>${nombre}</small></button>`;
+      aria-label="${nombre}: ${nombreTurno(turno)} ${detalle}">
+      <b>${letra}</b><span>${detalle}</span><small>${nombre}</small></button>`;
 }
 
 /** Texto de horario de un evento: "Todo el día", "10:00–12:30" o "10:00" */
@@ -118,8 +122,8 @@ function htmlMes(fecha) {
   for (let i = 0; i < huecos; i++) html += '<span class="dia dia--vacio" aria-hidden="true"></span>';
 
   for (const iso of diasVisibles('mes', fecha)) {
-    const dani = turnoDe('dani', iso);
-    const eva = turnoDe('eva', iso);
+    const dani = turnoCompleto('dani', iso);
+    const eva = turnoCompleto('eva', iso);
     const juntos = libresJuntos(iso);
     const eventos = eventosDe(iso);
 
@@ -133,8 +137,8 @@ function htmlMes(fecha) {
       .map(e => `<span class="ev-mini ev-mini--${e.quien}">${escaparHTML(e.emoji)}</span>`).join('')
       + (eventos.length > 3 ? `<span class="ev-mas">+${eventos.length - 3}</span>` : '');
 
-    const etiqueta = `${fechaLarga(iso)}. Dani: ${dani ? TURNOS[dani].nombre : 'sin turno'}. `
-      + `Eva: ${eva ? TURNOS[eva].nombre : 'sin turno'}.`
+    const etiqueta = `${fechaLarga(iso)}. Dani: ${nombreTurno(dani)} ${etiquetaLarga(dani)}. `
+      + `Eva: ${nombreTurno(eva)} ${etiquetaLarga(eva)}.`
       + (juntos ? ' Libráis los dos.' : '') + (eventos.length ? ` ${eventos.length} evento(s).` : '');
 
     html += `<button type="button" class="${clases.join(' ')}" data-fecha="${iso}" aria-label="${etiqueta}">
@@ -167,8 +171,8 @@ function htmlSemana(fecha) {
         <span class="sdia__num">${f.getDate()}</span>
         ${juntos ? '<span class="corazon">♥ libres</span>' : ''}
       </button>
-      ${turnoSemana('dani', turnoDe('dani', iso), iso)}
-      ${turnoSemana('eva', turnoDe('eva', iso), iso)}
+      ${turnoSemana('dani', turnoCompleto('dani', iso), iso)}
+      ${turnoSemana('eva', turnoCompleto('eva', iso), iso)}
       <div class="sdia__eventos">${eventos.map(e => htmlEvento(e)).join('')}</div>
     </article>`;
   });
@@ -196,9 +200,9 @@ export function renderResumen(vista, fecha, contenedor) {
     return vista === 'mes' ? f.getDate() : `${DIAS_ABREV[diaSemana(f)]} ${f.getDate()}`;
   }).join(', ');
 
-  const codigos = Object.entries(TURNOS)
-    .filter(([c]) => c !== 'L')
-    .map(([c, t]) => `<span class="codigo"><b>${c}</b> ${textoHoras(c)}</span>`).join('');
+  const codigos = Object.keys(TURNOS)
+    .filter(c => TURNOS[c].inicio)
+    .map(c => `<span class="codigo"><b>${c}</b> ${textoHoras(c)}</span>`).join('');
 
   contenedor.innerHTML = `
     <div class="stats">
@@ -215,5 +219,6 @@ export function renderResumen(vista, fecha, contenedor) {
       <span><i class="muestra muestra--juntos"></i>Evento juntos</span>
       <span><i class="muestra muestra--corazon"></i>♥ Libres los dos</span>
     </div>
-    <div class="codigos">${codigos}<span class="codigo"><b>L</b> Libre</span></div>`;
+    <div class="codigos">${codigos}<span class="codigo"><b>L</b> Libre</span>`
+    + `<span class="codigo"><b>V</b> Vacaciones</span><span class="codigo"><b>17-22</b> horario a medida</span></div>`;
 }

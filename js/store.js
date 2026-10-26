@@ -21,7 +21,7 @@ const CLAVE_PIN = 'calendario.pin';
 const ESPERA_MAX_MS = 15000; // si una petición tarda más de 15 s la damos por fallida
 
 // ---------- Datos en memoria ----------
-// turnos:  Map "persona|AAAA-MM-DD" → "M" / "T" / …
+// turnos:  Map "persona|AAAA-MM-DD" → { codigo, inicio, fin } (ver turnos.js)
 // eventos: Map id → { id, titulo, emoji, fecha, todo_el_dia, hora_inicio, hora_fin, notas, quien }
 export const datos = { turnos: new Map(), eventos: new Map() };
 
@@ -37,7 +37,8 @@ export function hayNube() {
 
 // La caché de la nube y los datos del modo local van en claves distintas
 // para que nunca se mezclen.
-const claveCache = () => (hayNube() ? 'calendario.cache.nube.v1' : 'calendario.datos.local.v1');
+// (v2: los turnos pasaron de ser un texto a un objeto con horas)
+const claveCache = () => (hayNube() ? 'calendario.cache.nube.v2' : 'calendario.datos.local.v2');
 
 // ---------- PIN guardado en el dispositivo ----------
 export const leerPin = () => leerLS(CLAVE_PIN);
@@ -134,6 +135,9 @@ function traducirError(error) {
   if (error.code === '42501') return 'PIN incorrecto o sin permiso (revisa las políticas RLS)';
   if (error.code === '42P01' || error.code === 'PGRST205') return 'No existen las tablas: ejecuta supabase/schema.sql';
   if (error.code === 'PGRST202') return 'Falta la función pin_valido: ejecuta supabase/schema.sql';
+  if (['42703', 'PGRST204', '23514'].includes(error.code)) {
+    return 'Hay que actualizar la base de datos: ejecuta supabase/actualizacion-1.sql en Supabase';
+  }
   return error.message || 'Error desconocido';
 }
 
@@ -192,7 +196,8 @@ function normalizarEvento(e) {
 export async function cargarRango(desde, hasta) {
   if (estado.modo !== 'nube') return;
   const [turnos, eventos] = await Promise.all([
-    ejecutar(c => c.from('turnos').select('persona,fecha,codigo').gte('fecha', desde).lte('fecha', hasta)),
+    ejecutar(c => c.from('turnos').select('persona,fecha,codigo,hora_inicio,hora_fin')
+      .gte('fecha', desde).lte('fecha', hasta)),
     ejecutar(c => c.from('eventos').select('*').gte('fecha', desde).lte('fecha', hasta).order('fecha')),
   ]);
 
@@ -205,15 +210,39 @@ export async function cargarRango(desde, hasta) {
     if (e.fecha >= desde && e.fecha <= hasta) datos.eventos.delete(id);
   }
   // …y metemos lo nuevo
-  turnos.forEach(t => datos.turnos.set(`${t.persona}|${t.fecha}`, t.codigo));
+  turnos.forEach(t => datos.turnos.set(`${t.persona}|${t.fecha}`, {
+    codigo: t.codigo,
+    inicio: t.hora_inicio ? t.hora_inicio.slice(0, 5) : null,
+    fin: t.hora_fin ? t.hora_fin.slice(0, 5) : null,
+  }));
   eventos.forEach(e => datos.eventos.set(e.id, normalizarEvento(e)));
 
   estado.ultimaSync = new Date().toISOString();
   guardarCache();
 }
 
-/** Turno de una persona en una fecha ("M", "L", … o null) */
-export const turnoDe = (persona, fecha) => datos.turnos.get(`${persona}|${fecha}`) || null;
+/** Turno completo de una persona en una fecha ({ codigo, inicio, fin } o null) */
+export const turnoCompleto = (persona, fecha) => datos.turnos.get(`${persona}|${fecha}`) || null;
+
+/** Solo el código del turno ("M", "L", "H"… o null) */
+export const turnoDe = (persona, fecha) => turnoCompleto(persona, fecha)?.codigo || null;
+
+/**
+ * Horarios a medida que ya ha usado una persona, del más usado al menos
+ * (p. ej. Eva: 17:00–22:00, 7:30–11:30…). Así no hay que escribirlos cada vez.
+ */
+export function horariosUsados(persona, maximo = 8) {
+  const cuenta = new Map();
+  for (const [clave, t] of datos.turnos) {
+    if (!clave.startsWith(persona + '|') || t.codigo !== 'H') continue;
+    const k = `${t.inicio}-${t.fin}`;
+    cuenta.set(k, (cuenta.get(k) || 0) + 1);
+  }
+  return [...cuenta.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maximo)
+    .map(([k]) => { const [inicio, fin] = k.split('-'); return { codigo: 'H', inicio, fin }; });
+}
 
 /** ¿Tiene esa persona algún turno puesto en ese mes? (prefijo "AAAA-MM") */
 export function tieneTurnosEnMes(persona, prefijoMes) {
@@ -234,28 +263,41 @@ export function eventosDe(fecha) {
 
 // ---------- Escritura: turnos ----------
 
-/** Pone, cambia o quita (codigo = null) el turno de un día */
-export async function guardarTurno(persona, fecha, codigo) {
-  if (estado.modo === 'nube') {
-    if (codigo) {
-      await ejecutar(c => c.from('turnos').upsert({ persona, fecha, codigo }, { onConflict: 'persona,fecha' }));
-    } else {
-      await ejecutar(c => c.from('turnos').delete().eq('persona', persona).eq('fecha', fecha));
-    }
-  }
-  if (codigo) datos.turnos.set(`${persona}|${fecha}`, codigo);
-  else datos.turnos.delete(`${persona}|${fecha}`);
-  guardarCache();
+/** Turno → fila de la tabla "turnos" de Supabase */
+const filaTurno = (persona, fecha, t) => ({
+  persona,
+  fecha,
+  codigo: t.codigo,
+  hora_inicio: t.codigo === 'H' ? t.inicio : null,
+  hora_fin: t.codigo === 'H' ? t.fin : null,
+});
+
+/** Pone, cambia o quita (turno = null) el turno de un día */
+export async function guardarTurno(persona, fecha, turno) {
+  if (turno) await guardarTurnos(persona, [{ fecha, ...turno }]);
+  else await borrarTurnos(persona, [fecha]);
 }
 
-/** Guarda muchos turnos de golpe (lo usa el importador de fotos) */
+/** Guarda muchos turnos de golpe: lista de { fecha, codigo, inicio, fin } */
 export async function guardarTurnos(persona, lista) {
   if (!lista.length) return;
   if (estado.modo === 'nube') {
-    const filas = lista.map(({ fecha, codigo }) => ({ persona, fecha, codigo }));
+    const filas = lista.map(t => filaTurno(persona, t.fecha, t));
     await ejecutar(c => c.from('turnos').upsert(filas, { onConflict: 'persona,fecha' }));
   }
-  lista.forEach(({ fecha, codigo }) => datos.turnos.set(`${persona}|${fecha}`, codigo));
+  lista.forEach(t => datos.turnos.set(`${persona}|${t.fecha}`, {
+    codigo: t.codigo, inicio: t.codigo === 'H' ? t.inicio : null, fin: t.codigo === 'H' ? t.fin : null,
+  }));
+  guardarCache();
+}
+
+/** Quita los turnos de una persona en varias fechas */
+export async function borrarTurnos(persona, fechas) {
+  if (!fechas.length) return;
+  if (estado.modo === 'nube') {
+    await ejecutar(c => c.from('turnos').delete().eq('persona', persona).in('fecha', fechas));
+  }
+  fechas.forEach(f => datos.turnos.delete(`${persona}|${f}`));
   guardarCache();
 }
 

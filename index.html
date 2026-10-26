@@ -56,7 +56,7 @@
 
   <!-- ===== BOTONES FIJOS ABAJO (cómodos con el pulgar en el móvil) ===== -->
   <div class="acciones">
-    <button id="btn-foto" class="btn" type="button">📷 Subir foto de horario</button>
+    <button id="btn-foto" class="btn" type="button">📥 Cargar horario</button>
     <button id="btn-evento" class="btn btn--primario" type="button">＋ Añadir evento</button>
   </div>
 
@@ -94,6 +94,7 @@
           <span id="dia-horas-dani" class="texto-suave"></span>
         </div>
         <div class="selector-turno" data-persona="dani"></div>
+        <div class="horas-medida" data-persona="dani" hidden></div>
       </section>
 
       <!-- Eva siempre abajo -->
@@ -103,6 +104,7 @@
           <span id="dia-horas-eva" class="texto-suave"></span>
         </div>
         <div class="selector-turno" data-persona="eva"></div>
+        <div class="horas-medida" data-persona="eva" hidden></div>
       </section>
 
       <section>
@@ -180,74 +182,123 @@
   </dialog>
 
   <!-- =========================================================
-       MODAL: IMPORTAR HORARIO DESDE FOTO (OCR con Tesseract.js)
+       MODAL: CARGAR HORARIO DEL MES
+       Paso 1: de quién, qué mes y cómo (Excel, pegar, a mano o foto)
+       Paso 2: editor del mes para revisar/corregir y guardar
        ========================================================= -->
-  <dialog id="dlg-foto" class="modal modal--ancho">
+  <dialog id="dlg-importar" class="modal modal--ancho">
     <div class="modal__cuerpo">
       <header class="modal__cabecera">
-        <h3>📷 Importar horario desde foto</h3>
+        <h3>📥 Cargar horario del mes</h3>
         <button class="btn-icono" type="button" data-cerrar aria-label="Cerrar">✕</button>
       </header>
 
-      <!-- Paso 1: elegir persona, mes, año y la foto -->
-      <section id="foto-paso1" class="pasos">
+      <!-- ===== Paso 1 ===== -->
+      <section id="imp-paso1" class="pasos">
         <fieldset class="campo">
           <legend>¿De quién es el horario?</legend>
           <div class="segmentado segmentado--quien">
-            <label class="quien--dani"><input type="radio" name="foto-persona" value="dani" checked><span>Dani</span></label>
-            <label class="quien--eva"><input type="radio" name="foto-persona" value="eva"><span>Eva</span></label>
+            <label class="quien--dani"><input type="radio" name="imp-persona" value="dani" checked><span>Dani</span></label>
+            <label class="quien--eva"><input type="radio" name="imp-persona" value="eva"><span>Eva</span></label>
           </div>
         </fieldset>
 
         <div class="fila-2">
-          <label class="campo">Mes <select id="foto-mes"></select></label>
-          <label class="campo">Año <input id="foto-anio" type="number" min="2020" max="2100" inputmode="numeric"></label>
+          <label class="campo">Mes <select id="imp-mes"></select></label>
+          <label class="campo">Año <input id="imp-anio" type="number" min="2020" max="2100" inputmode="numeric"></label>
         </div>
 
-        <label class="campo">Nombre tal y como sale en la planilla
-          <input id="foto-nombre" type="text" placeholder="Nombre y apellidos">
-        </label>
-
-        <label class="btn btn--bloque btn-archivo">
-          🖼️ Hacer o elegir foto
-          <input id="foto-archivo" type="file" accept="image/*">
-        </label>
-        <p class="texto-suave pista">Consejo: haz la foto recta, con buena luz y que se vea bien tu fila.</p>
-
-        <label class="check">
-          <input id="foto-binarizar" type="checkbox" checked> Convertir a blanco y negro (suele acertar más)
-        </label>
-
-        <!-- Vista previa de la imagen ya mejorada (la que lee el OCR) -->
-        <canvas id="foto-preview" class="foto-preview" hidden></canvas>
-
-        <div id="foto-progreso" class="progreso" hidden>
-          <div class="progreso__barra"><span></span></div>
-          <p class="texto-suave"></p>
+        <span class="subtitulo">¿Cómo lo quieres cargar?</span>
+        <div class="metodos">
+          <!-- El input de archivo ocupa toda la tarjeta: al pulsarla se abre el selector -->
+          <label class="metodo">
+            <span class="metodo__icono">📊</span>
+            <span><b>Archivo Excel</b><small>El cuadrante en .xlsx. Lo más fiable.</small></span>
+            <input id="imp-excel" type="file" accept=".xlsx,.xlsm,.xls,.ods,.csv">
+          </label>
+          <button class="metodo" type="button" data-metodo="pegar">
+            <span class="metodo__icono">📋</span>
+            <span><b>Pegar desde Excel</b><small>Copia tu fila y la de los días</small></span>
+          </button>
+          <button class="metodo" type="button" data-metodo="manual">
+            <span class="metodo__icono">✏️</span>
+            <span><b>Rellenar a mano</b><small>Elige un turno y toca los días</small></span>
+          </button>
+          <button class="metodo" type="button" data-metodo="foto">
+            <span class="metodo__icono">📷</span>
+            <span><b>Foto</b><small>Solo hojas impresas, rectas y nítidas</small></span>
+          </button>
         </div>
 
-        <button id="foto-leer" class="btn btn--primario btn--bloque" type="button" disabled>🔍 Leer horario</button>
+        <!-- Nombre: solo hace falta para Excel, pegar y foto -->
+        <label id="imp-nombre-caja" class="campo" hidden>Nombre tal y como sale en el cuadrante
+          <input id="imp-nombre" type="text" placeholder="Nombre y apellidos" autocomplete="off">
+        </label>
+
+        <!-- Excel: elegir la hoja (pestaña) del mes -->
+        <div id="imp-excel-caja" class="pasos" hidden>
+          <label class="campo">Hoja del Excel <select id="imp-hoja"></select></label>
+          <button id="imp-leer-excel" class="btn btn--primario btn--bloque" type="button">🔍 Leer mi fila</button>
+        </div>
+
+        <!-- Pegar: lo copiado de Excel llega separado por tabuladores -->
+        <div id="imp-pegar-caja" class="pasos" hidden>
+          <p class="texto-suave">En Excel selecciona desde la fila de los <b>números de día</b> hasta <b>tu fila</b> (con tu nombre), copia (Ctrl+C) y pega aquí.</p>
+          <textarea id="imp-pegar" rows="5" placeholder="Pega aquí…" spellcheck="false"></textarea>
+          <button id="imp-leer-pegado" class="btn btn--primario btn--bloque" type="button">🔍 Leer lo pegado</button>
+        </div>
+
+        <!-- Foto (OCR en el navegador con Tesseract.js) -->
+        <div id="imp-foto-caja" class="pasos" hidden>
+          <label class="btn btn--bloque btn-archivo">
+            🖼️ Hacer o elegir foto
+            <input id="imp-foto" type="file" accept="image/*">
+          </label>
+          <p class="texto-suave pista">Funciona con hojas impresas en las que cada día tiene su letra (también la L). Con fotos de pantalla, torcidas o escritas a mano no es fiable: usa Excel o "Rellenar a mano".</p>
+          <label class="check">
+            <input id="imp-binarizar" type="checkbox" checked> Convertir a blanco y negro (suele acertar más)
+          </label>
+          <canvas id="imp-preview" class="foto-preview" hidden></canvas>
+          <div id="imp-progreso" class="progreso" hidden>
+            <div class="progreso__barra"><span></span></div>
+            <p class="texto-suave"></p>
+          </div>
+          <button id="imp-leer-foto" class="btn btn--primario btn--bloque" type="button" disabled>🔍 Leer foto</button>
+        </div>
       </section>
 
-      <!-- Paso 2: tabla editable para revisar antes de guardar -->
-      <section id="foto-paso2" class="pasos" hidden>
-        <p id="foto-resumen" class="nota"></p>
+      <!-- ===== Paso 2: editor del mes ===== -->
+      <section id="imp-paso2" class="pasos" hidden>
+        <p id="imp-resumen" class="nota"></p>
 
-        <label class="campo">Fila de la foto usada
-          <select id="foto-linea"></select>
+        <!-- Paleta: se elige un turno y se tocan los días -->
+        <div class="paleta-caja">
+          <div id="imp-paleta" class="paleta" role="toolbar" aria-label="Turno que se pone al tocar un día"></div>
+          <div id="imp-otro" class="otro-horario" hidden>
+            <label class="campo">Entra <input id="imp-otro-inicio" type="time"></label>
+            <label class="campo">Sale <input id="imp-otro-fin" type="time"></label>
+            <button id="imp-otro-anadir" class="btn btn--pequeno" type="button">Añadir</button>
+          </div>
+        </div>
+
+        <div id="imp-tabla" class="tabla-import" aria-label="Turnos del mes. Toca un día para ponerle el turno elegido"></div>
+
+        <div class="fila-botones">
+          <button id="imp-vacios-libre" class="btn btn--pequeno" type="button">Días vacíos → Libre</button>
+        </div>
+
+        <label id="imp-linea-caja" class="campo" hidden>Fila de la foto usada
+          <select id="imp-linea"></select>
         </label>
-
-        <div id="foto-tabla" class="tabla-import" aria-label="Turnos reconocidos, editables"></div>
-
-        <details class="detalles">
-          <summary>Ver texto reconocido</summary>
-          <pre id="foto-texto"></pre>
+        <details id="imp-detalles" class="detalles" hidden>
+          <summary>Ver lo que se ha leído</summary>
+          <pre id="imp-texto"></pre>
         </details>
 
         <footer class="modal__pie">
-          <button id="foto-volver" class="btn" type="button">‹ Volver</button>
+          <button id="imp-volver" class="btn" type="button">‹ Volver</button>
           <span class="espaciador"></span>
-          <button id="foto-confirmar" class="btn btn--primario" type="button">✅ Confirmar y añadir</button>
+          <button id="imp-confirmar" class="btn btn--primario" type="button">✅ Guardar en el calendario</button>
         </footer>
       </section>
     </div>
